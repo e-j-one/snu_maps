@@ -64,6 +64,80 @@ def map_to_occupancy_grid(map_img, occupied_thresh, free_thresh):
     occupancy_grid[normalized_map <= occupied_thresh] = 1
     return occupancy_grid
 
+# Function to check line of sight using Bresenham's Line Algorithm
+def line_of_sight(occupancy_grid, start, end):
+    x0, y0 = start
+    x1, y1 = end
+    dx = abs(x1 - x0)
+    dy = -abs(y1 - y0)
+    sx = 1 if x0 < x1 else -1
+    sy = 1 if y0 < y1 else -1
+    err = dx + dy
+
+    while True:
+        if occupancy_grid[x0, y0] == 1:  # Check for obstacle
+            return False
+        if (x0, y0) == (x1, y1):
+            return True
+        e2 = 2 * err
+        if e2 >= dy:
+            if x0 == x1:
+                break
+            err += dy
+            x0 += sx
+        if e2 <= dx:
+            if y0 == y1:
+                break
+            err += dx
+            y0 += sy
+
+# Theta* algorithm for path finding
+def theta_star(occupancy_grid, start, goal):
+    open_set = []
+    heapq.heappush(open_set, (0, start))
+    came_from = {start: None}
+    g_cost = {start: 0}
+    f_cost = {start: heuristic(start, goal)}
+
+    while open_set:
+        current = heapq.heappop(open_set)[1]
+
+        if current == start:
+            came_from[current] = None
+        elif current == goal:
+            break  # Found the goal
+
+        for neighbor in get_neighbors(current, occupancy_grid):
+            tentative_g_cost = g_cost[current] + distance(current, neighbor)
+            if neighbor not in g_cost or tentative_g_cost < g_cost[neighbor]:
+                if came_from[current] is None or line_of_sight(occupancy_grid, came_from[current], neighbor):
+                    came_from[neighbor] = current
+                else:
+                    came_from[neighbor] = came_from[current]
+                g_cost[neighbor] = tentative_g_cost
+                f_cost[neighbor] = tentative_g_cost + heuristic(neighbor, goal)
+                heapq.heappush(open_set, (f_cost[neighbor], neighbor))
+    return reconstruct_path(came_from, goal)
+
+# Heuristic function for path scoring (Euclidean distance)
+def heuristic(start, goal):
+    return np.sqrt((start[0] - goal[0]) ** 2 + (start[1] - goal[1]) ** 2)
+
+# Function to get neighbors for the current node
+def get_neighbors(node, grid):
+    directions = [(0, 1), (1, 0), (0, -1), (-1, 0), # 4-directional
+                  (-1, -1), (-1, 1), (1, -1), (1, 1)] # Diagonals
+    neighbors = []
+    for dx, dy in directions:
+        x, y = node[0] + dx, node[1] + dy
+        if 0 <= x < grid.shape[0] and 0 <= y < grid.shape[1] and grid[x, y] != 1:
+            neighbors.append((x, y))
+    return neighbors
+
+# Function to calculate distance between two points (Euclidean distance)
+def distance(start, end):
+    return np.sqrt((start[0] - end[0]) ** 2 + (start[1] - end[1]) ** 2)
+
 # Dijkstra's algorithm for path finding
 def dijkstra(occupancy_grid, start, goal):
     # Priority queue for open set
@@ -96,13 +170,11 @@ def dijkstra(occupancy_grid, start, goal):
 # Function to reconstruct path from came_from dictionary
 def reconstruct_path(came_from, current):
     path = []
-    while current in came_from:
+    while current is not None:  # Skip if current is None
         path.append(current)
         current = came_from[current]
-    path.append(current) # Add the start position
-    path.reverse() # Reverse the path to start->goal
+    path.reverse()  # Reverse the path to start->goal
     return path
-
 
 # Modify the main function to convert the start and goal poses
 def find_path(config_file, start_pose, goal_pose):
@@ -118,7 +190,8 @@ def find_path(config_file, start_pose, goal_pose):
     goal_map = world_to_map(goal_pose, origin, resolution)
 
     # Find the path in map coordinates
-    path_map = dijkstra(occupancy_grid, start_map, goal_map)
+    path_map = theta_star(occupancy_grid, start_map, goal_map)
+    print("path_map: ", path_map)
     
     # Convert the path back to world coordinates
     path_world = [map_to_world(pose, origin, resolution) for pose in path_map]

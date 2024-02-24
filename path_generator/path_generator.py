@@ -6,25 +6,40 @@ import heapq
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
-def plot_path_on_map(map_img, path):
-    fig, ax = plt.subplots(figsize=(10, 10))  # Adjust the size to fit your map dimensions
-    # Show the map image
-    ax.imshow(map_img, cmap='gray', origin='lower')
+# Function to convert world coordinates to map coordinates
+def world_to_map(pose, origin, resolution):
+    map_x = int((pose[0] - origin[0]) / resolution)
+    map_y = int((pose[1] - origin[1]) / resolution)
+    return (map_x, map_y)
 
-    # Check if the path is valid and has more than one point
-    if path and len(path) > 1:
-        # Extract X and Y coordinates from the path
-        y, x = zip(*path)
-        ax.plot(x, y, 'r-', linewidth=2)  # Red line for the path
-        ax.plot(x[0], y[0], 'go')  # Green dot for the start
-        ax.plot(x[-1], y[-1], 'bo')  # Blue dot for the goal
+# Function to convert map coordinates to world coordinates
+def map_to_world(map_coords, origin, resolution):
+    world_x = (map_coords[0] * resolution) + origin[0]
+    world_y = (map_coords[1] * resolution) + origin[1]
+    return (world_x, world_y)
+
+# Modify the plot function to use world coordinates
+def plot_path_on_map(map_img, path, origin, resolution):
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.imshow(map_img, cmap='gray', origin='lower')
+    
+    # Convert path to array for easier manipulation
+    path = np.array(path)
+    
+    if path.size > 0:
+        # Scale the path according to the resolution and shift by the origin
+        path_scaled = (path - np.array(origin[:2])) / resolution
+        y, x = path_scaled.T
+        ax.plot(x, y, 'r-', linewidth=2)
+        ax.plot(x[0], y[0], 'go')  # Start in green
+        ax.plot(x[-1], y[-1], 'bo')  # Goal in blue
     else:
         print("Invalid or too short path provided for plotting")
 
     ax.set_title("Path Planning")
-    ax.set_xlabel("X")
-    ax.set_ylabel("Y")
-    ax.axis('image')  # Ensures the aspect ratio is equal and axes are scaled correctly
+    ax.set_xlabel("X [m]")
+    ax.set_ylabel("Y [m]")
+    ax.axis('equal')
     plt.show()
 
 # Function to read YAML configuration file
@@ -88,21 +103,38 @@ def reconstruct_path(came_from, current):
     path.reverse() # Reverse the path to start->goal
     return path
 
-# Main function to read the config and map, and find the path
-def find_path(config_file, start, goal):
+
+# Modify the main function to convert the start and goal poses
+def find_path(config_file, start_pose, goal_pose):
     config = read_yaml_config(config_file)
+    origin = config['origin'][:2]  # We only need the X,Y components
+    resolution = config['resolution']
+    
     map_img = read_pgm_map(config['image'])
     occupancy_grid = map_to_occupancy_grid(map_img, config['occupied_thresh'], config['free_thresh'])
-    path = dijkstra(occupancy_grid, start, goal)
-    return path
+    
+    # Convert world poses to map coordinates
+    start_map = world_to_map(start_pose, origin, resolution)
+    goal_map = world_to_map(goal_pose, origin, resolution)
+
+    # Find the path in map coordinates
+    path_map = dijkstra(occupancy_grid, start_map, goal_map)
+    
+    # Convert the path back to world coordinates
+    path_world = [map_to_world(pose, origin, resolution) for pose in path_map]
+    
+    return path_world
+
 
 if __name__ == "__main__":
     config_file_path = '302_3f_room_and_hallway_slam.yaml'
-    start_pose = (100, 100) # Example start position
-    goal_pose = (500, 500) # Example goal position
+    start_pose = (-20, -10) # Example start position
+    goal_pose = (3, 3) # Example goal position
     path = find_path(config_file_path, start_pose, goal_pose)
 
     config = read_yaml_config(config_file_path)
+    origin = config['origin'][:2]  # We only need the X,Y components
+    resolution = config['resolution']
     map_img = read_pgm_map(config['image'])
-    plot_path_on_map(map_img, path)
+    plot_path_on_map(map_img, path, origin, resolution)
     print(path)

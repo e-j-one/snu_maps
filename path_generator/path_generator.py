@@ -63,12 +63,23 @@ def read_pgm_map(file_path):
 def map_to_occupancy_grid(map_img, occupied_thresh, free_thresh):
     # Normalize pixel values to [0, 1]
     normalized_map = map_img / 255.0
+
+    print("normalized_map shape", normalized_map.shape)
+    # print("normalized_map", normalized_map[100])
+    # for i in range(600):
+    #     print(normalized_map[400][i])
+    # print("free_thresh", free_thresh)
+    # print("occupied_thresh", occupied_thresh)
+    
     # Occupancy grid initialization
     occupancy_grid = np.zeros_like(normalized_map, dtype=np.int8)
     # Free space
     occupancy_grid[normalized_map >= free_thresh] = -1
     # Occupied space
     occupancy_grid[normalized_map <= occupied_thresh] = 1
+
+    # for i in range(600):
+    #     print(occupancy_grid[400][i])
     return occupancy_grid
 
 # Function to check line of sight using Bresenham's Line Algorithm
@@ -124,7 +135,7 @@ def theta_star(occupancy_grid, start, goal):
                 g_cost[neighbor] = tentative_g_cost
                 f_cost[neighbor] = tentative_g_cost + heuristic(neighbor, goal)
                 heapq.heappush(open_set, (f_cost[neighbor], neighbor))
-    return reconstruct_path(came_from, goal)
+    return reconstruct_thetastar_path(came_from, goal)
 
 # Heuristic function for path scoring (Euclidean distance)
 def heuristic(start, goal):
@@ -159,7 +170,7 @@ def dijkstra(occupancy_grid, start, goal):
         current_cost, current = heapq.heappop(open_set)
 
         if current == goal:
-            return reconstruct_path(came_from, current)
+            return reconstruct_dijkstra_path(came_from, current)
 
         for dx, dy in directions:
             neighbor = (current[0] + dx, current[1] + dy)
@@ -175,13 +186,24 @@ def dijkstra(occupancy_grid, start, goal):
     return []
 
 # Function to reconstruct path from came_from dictionary
-def reconstruct_path(came_from, current):
+def reconstruct_thetastar_path(came_from, current):
     path = []
     while current is not None:  # Skip if current is None
         path.append(current)
         current = came_from[current]
     path.reverse()  # Reverse the path to start->goal
     return path
+
+
+def reconstruct_dijkstra_path(came_from, current):
+    path = []
+    while current in came_from:
+        path.append(current)
+        current = came_from[current]
+    path.append(current) # Add the start position
+    path.reverse() # Reverse the path to start->goal
+    return path
+
 
 # Modify the main function to convert the start and goal poses
 def find_path(config_file, start_pose, goal_pose):
@@ -197,6 +219,7 @@ def find_path(config_file, start_pose, goal_pose):
     goal_map = world_to_map(goal_pose, origin, resolution)
 
     # Find the path in map coordinates
+    # path_map = dijkstra(occupancy_grid, start_map, goal_map)
     path_map = theta_star(occupancy_grid, start_map, goal_map)
     print("path_map: ", path_map)
     
@@ -209,7 +232,7 @@ def find_path(config_file, start_pose, goal_pose):
 if __name__ == "__main__":
     config_file_path = '302_3f_room_and_hallway_slam.yaml'
     start_pose = (-20, -10) # Example start position
-    goal_pose = (3, 3) # Example goal position
+    goal_pose = (0, 0) # Example goal position
     path = find_path(config_file_path, start_pose, goal_pose)
     file_name = f'path_{start_pose[0]}_{start_pose[1]}_to_{goal_pose[0]}_{goal_pose[0]}.json'
     save_path_to_json(path, file_name)

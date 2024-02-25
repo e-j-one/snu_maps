@@ -113,29 +113,39 @@ def line_of_sight(occupancy_grid, start, end):
 def theta_star(occupancy_grid, start, goal):
     open_set = []
     heapq.heappush(open_set, (0, start))
-    came_from = {start: None}
+    came_from = {start: start}
     g_cost = {start: 0}
     f_cost = {start: heuristic(start, goal)}
 
     while open_set:
         current = heapq.heappop(open_set)[1]
-
-        if current == start:
-            came_from[current] = None
-        elif current == goal:
-            break  # Found the goal
+        if current == goal:
+            return reconstruct_thetastar_path(came_from, goal)
 
         for neighbor in get_neighbors(current, occupancy_grid):
-            tentative_g_cost = g_cost[current] + distance(current, neighbor)
-            if neighbor not in g_cost or tentative_g_cost < g_cost[neighbor]:
-                if came_from[current] is None or line_of_sight(occupancy_grid, came_from[current], neighbor):
+            if occupancy_grid[neighbor] == 1:  # If the neighbor is an obstacle.
+                continue
+            
+            # Retrieve parent of the current node
+            parent = came_from[current]
+
+            # Use line_of_sight to check if the neighbor can be reached from the parent of the current node
+            if line_of_sight(occupancy_grid, parent, neighbor):
+                tentative_g_cost = g_cost[parent] + distance(parent, neighbor)
+                if neighbor not in g_cost or tentative_g_cost < g_cost[neighbor]:
+                    came_from[neighbor] = parent
+                    g_cost[neighbor] = tentative_g_cost
+                    f_cost[neighbor] = tentative_g_cost + heuristic(neighbor, goal)
+                    heapq.heappush(open_set, (f_cost[neighbor], neighbor))
+            else:
+                tentative_g_cost = g_cost[current] + distance(current, neighbor)
+                if neighbor not in g_cost or tentative_g_cost < g_cost[neighbor]:
                     came_from[neighbor] = current
-                else:
-                    came_from[neighbor] = came_from[current]
-                g_cost[neighbor] = tentative_g_cost
-                f_cost[neighbor] = tentative_g_cost + heuristic(neighbor, goal)
-                heapq.heappush(open_set, (f_cost[neighbor], neighbor))
-    return reconstruct_thetastar_path(came_from, goal)
+                    g_cost[neighbor] = tentative_g_cost
+                    f_cost[neighbor] = tentative_g_cost + heuristic(neighbor, goal)
+                    heapq.heappush(open_set, (f_cost[neighbor], neighbor))
+
+    return []
 
 # Heuristic function for path scoring (Euclidean distance)
 def heuristic(start, goal):
@@ -187,9 +197,12 @@ def dijkstra(occupancy_grid, start, goal):
 
 # Function to reconstruct path from came_from dictionary
 def reconstruct_thetastar_path(came_from, current):
+    print("reconstruct_thetastar_path")
     path = []
-    while current is not None:  # Skip if current is None
+    while current in came_from:
         path.append(current)
+        if current == came_from[current]:
+            break
         current = came_from[current]
     path.reverse()  # Reverse the path to start->goal
     return path

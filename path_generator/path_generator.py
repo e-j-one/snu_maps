@@ -14,15 +14,15 @@ def save_path_to_json(path, filename):
         json.dump(serializable_path, json_file, indent=4)
 
 # Function to convert world coordinates to map coordinates
-def world_to_map(pose, origin, resolution):
-    map_x = int((pose[0] - origin[0]) / resolution)
-    map_y = int((pose[1] - origin[1]) / resolution)
-    return (map_x, map_y)
+def world_to_map(pose, origin, resolution, grid_shape):
+    map_i = grid_shape[0] - 1 - int((pose[1] - origin[1]) / resolution)
+    map_j = int((pose[0] - origin[0]) / resolution)
+    return (map_i, map_j)
 
 # Function to convert map coordinates to world coordinates
-def map_to_world(map_coords, origin, resolution):
-    world_x = (map_coords[0] * resolution) + origin[0]
-    world_y = (map_coords[1] * resolution) + origin[1]
+def map_to_world(map_coords, origin, resolution, grid_shape):
+    world_x = (map_coords[1] * resolution) + origin[0]
+    world_y = ((grid_shape[0] - 1 - map_coords[0]) * resolution) + origin[1]
     return (world_x, world_y)
 
 # Modify the plot function to use world coordinates
@@ -36,7 +36,10 @@ def plot_path_on_map(map_img, path, origin, resolution):
     if path.size > 0:
         # Scale the path according to the resolution and shift by the origin
         path_scaled = (path - np.array(origin[:2])) / resolution
-        y, x = path_scaled.T
+        x, y = path_scaled.T
+        print("x", x)
+        print("y", y)
+        y = map_img.shape[0] - 1 - y
         ax.plot(x, y, 'r-', linewidth=2)
         ax.plot(x[0], y[0], 'go')  # Start in green
         ax.plot(x[-1], y[-1], 'bo')  # Goal in blue
@@ -197,7 +200,7 @@ def dijkstra(occupancy_grid, start, goal):
 
 # Function to reconstruct path from came_from dictionary
 def reconstruct_thetastar_path(came_from, current):
-    print("reconstruct_thetastar_path")
+    print("reconstruct_thetastar_path", current)
     path = []
     while current in came_from:
         path.append(current)
@@ -226,10 +229,10 @@ def find_path(config_file, start_pose, goal_pose):
     
     map_img = read_pgm_map(config['image'])
     occupancy_grid = map_to_occupancy_grid(map_img, config['occupied_thresh'], config['free_thresh'])
-    
+    grid_shape = occupancy_grid.shape
     # Convert world poses to map coordinates
-    start_map = world_to_map(start_pose, origin, resolution)
-    goal_map = world_to_map(goal_pose, origin, resolution)
+    start_map = world_to_map(start_pose, origin, resolution, grid_shape)
+    goal_map = world_to_map(goal_pose, origin, resolution, grid_shape)
 
     # Find the path in map coordinates
     # path_map = dijkstra(occupancy_grid, start_map, goal_map)
@@ -237,15 +240,17 @@ def find_path(config_file, start_pose, goal_pose):
     print("path_map: ", path_map)
     
     # Convert the path back to world coordinates
-    path_world = [map_to_world(pose, origin, resolution) for pose in path_map]
-    
+    path_world = [map_to_world(pose, origin, resolution, grid_shape) for pose in path_map]
+    print("path_world: ", path_world)
+
     return path_world
 
 
 if __name__ == "__main__":
     config_file_path = '302_3f_room_and_hallway_slam.yaml'
-    start_pose = (-20, -10) # Example start position
+    start_pose = (-20, -12) # Example start position
     goal_pose = (0, 0) # Example goal position
+    # goal_pose = start_pose
     path = find_path(config_file_path, start_pose, goal_pose)
     file_name = f'path_{start_pose[0]}_{start_pose[1]}_to_{goal_pose[0]}_{goal_pose[0]}.json'
     save_path_to_json(path, file_name)

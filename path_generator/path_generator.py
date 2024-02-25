@@ -4,7 +4,14 @@ from imageio.v2 import imread
 import heapq
 
 import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
+
+import json
+
+def save_path_to_json(path, filename):
+    # Convert any non-serializable items (like tuples) in the path to serializable formats (like lists)
+    serializable_path = [list(point) for point in path]
+    with open(filename, 'w') as json_file:
+        json.dump(serializable_path, json_file, indent=4)
 
 # Function to convert world coordinates to map coordinates
 def world_to_map(pose, origin, resolution):
@@ -204,6 +211,8 @@ if __name__ == "__main__":
     start_pose = (-20, -10) # Example start position
     goal_pose = (3, 3) # Example goal position
     path = find_path(config_file_path, start_pose, goal_pose)
+    file_name = f'path_{start_pose[0]}_{start_pose[1]}_to_{goal_pose[0]}_{goal_pose[0]}.json'
+    save_path_to_json(path, file_name)
 
     config = read_yaml_config(config_file_path)
     origin = config['origin'][:2]  # We only need the X,Y components

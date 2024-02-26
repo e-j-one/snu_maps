@@ -247,12 +247,12 @@ def find_path(config_file, start_pose, goal_pose):
 
 
 if __name__ == "__main__":
-    config_file_path = '302_3f_room_and_hallway_slam.yaml'
-    start_pose = (-20, -12) # Example start position
-    goal_pose = (0, 0) # Example goal position
-    # goal_pose = start_pose
+    map_name = '302_3f'
+    config_file_path = '302_3f_room_and_hallway_slam_adj.yaml'
+    start_pose = (32, 8) # Example start position
+    goal_pose = (8, -8) # Example goal position
     path = find_path(config_file_path, start_pose, goal_pose)
-    file_name = f'path_{start_pose[0]}_{start_pose[1]}_to_{goal_pose[0]}_{goal_pose[0]}.json'
+    file_name = f'paths/{map_name}/path_{start_pose[0]}_{start_pose[1]}_to_{goal_pose[0]}_{goal_pose[0]}.json'
     save_path_to_json(path, file_name)
 
     config = read_yaml_config(config_file_path)

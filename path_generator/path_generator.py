@@ -63,7 +63,7 @@ def read_pgm_map(file_path):
     return imread(file_path, pilmode='L')
 
 # Function to convert map pixels to occupancy grid
-def map_to_occupancy_grid(map_img, occupied_thresh, free_thresh):
+def map_to_occupancy_grid(map_img, occupied_thresh, free_thresh, use_costmap):
     # Normalize pixel values to [0, 1]
     normalized_map = map_img / 255.0
 
@@ -76,11 +76,17 @@ def map_to_occupancy_grid(map_img, occupied_thresh, free_thresh):
     
     # Occupancy grid initialization
     occupancy_grid = np.zeros_like(normalized_map, dtype=np.int8)
-    # Free space
-    occupancy_grid[normalized_map >= free_thresh] = -1
-    # Occupied space
-    occupancy_grid[normalized_map <= occupied_thresh] = 1
-
+    if(use_costmap):
+        # Free space
+        occupancy_grid[normalized_map <= free_thresh] = -1
+        # Occupied space
+        occupancy_grid[normalized_map >= occupied_thresh] = 1
+    else:
+        # Free space
+        occupancy_grid[normalized_map >= free_thresh] = -1
+        # Occupied space
+        occupancy_grid[normalized_map <= occupied_thresh] = 1
+    
     # for i in range(600):
     #     print(occupancy_grid[400][i])
     return occupancy_grid
@@ -222,13 +228,13 @@ def reconstruct_dijkstra_path(came_from, current):
 
 
 # Modify the main function to convert the start and goal poses
-def find_path(config_file, start_pose, goal_pose):
+def find_path(config_file, start_pose, goal_pose, use_costmap = True):
     config = read_yaml_config(config_file)
     origin = config['origin'][:2]  # We only need the X,Y components
     resolution = config['resolution']
     
     map_img = read_pgm_map(config['image'])
-    occupancy_grid = map_to_occupancy_grid(map_img, config['occupied_thresh'], config['free_thresh'])
+    occupancy_grid = map_to_occupancy_grid(map_img, config['occupied_thresh'], config['free_thresh'], use_costmap)
     grid_shape = occupancy_grid.shape
     # Convert world poses to map coordinates
     start_map = world_to_map(start_pose, origin, resolution, grid_shape)
@@ -248,14 +254,15 @@ def find_path(config_file, start_pose, goal_pose):
 
 if __name__ == "__main__":
     map_name = '302_3f'
-    config_file_path = '302_3f_room_and_hallway_slam_adj.yaml'
+    costmap_config_file_path = '302_3f_room_and_hallway_slam_adj_costmap.yaml'
     start_pose = (32, 8) # Example start position
     goal_pose = (8, -8) # Example goal position
-    path = find_path(config_file_path, start_pose, goal_pose)
-    file_name = f'paths/{map_name}/path_{start_pose[0]}_{start_pose[1]}_to_{goal_pose[0]}_{goal_pose[0]}.json'
+    path = find_path(costmap_config_file_path, start_pose, goal_pose, use_costmap=True)
+    file_name = f'paths/{map_name}/path_{start_pose[0]}_{start_pose[1]}_to_{goal_pose[0]}_{goal_pose[1]}.json'
     save_path_to_json(path, file_name)
 
-    config = read_yaml_config(config_file_path)
+    gridmap_config_file_path = '302_3f_room_and_hallway_slam_adj.yaml'
+    config = read_yaml_config(gridmap_config_file_path)
     origin = config['origin'][:2]  # We only need the X,Y components
     resolution = config['resolution']
     map_img = read_pgm_map(config['image'])
